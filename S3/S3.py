@@ -515,10 +515,10 @@ class S3(object):
             raise InvalidFileError(u"%s is not a regular file" % unicodise(filename))
         try:
             if filename == "-":
-                file = sys.stdin
+                stream = sys.stdin
                 size = 0
             else:
-                file = open(filename, "rb")
+                stream = open(filename, "rb")
                 size = os.stat(filename)[ST_SIZE]
         except (IOError, OSError), e:
             raise InvalidFileError(u"%s: %s" % (unicodise(filename), e.strerror))
@@ -549,7 +549,7 @@ class S3(object):
                 multipart = True
         if multipart:
             # Multipart requests are quite different... drop here
-            return self.send_file_multipart(file, headers, uri, size)
+            return self.send_file_multipart(stream, headers, uri, size)
 
         ## Not multipart...
         if self.config.put_continue:
@@ -566,7 +566,7 @@ class S3(object):
                 remote_size = int(info['headers']['content-length'])
                 remote_checksum = info['headers']['etag'].strip('"\'')
                 if size == remote_size:
-                    checksum = calculateChecksum('', file, 0, size, self.config.send_chunk)
+                    checksum = calculateChecksum(stream = stream, chunk_size = size)
                     if remote_checksum == checksum:
                         warning("Put: size and md5sum match for %s, skipping." % uri)
                         return
@@ -580,7 +580,7 @@ class S3(object):
         headers["content-length"] = size
         request = self.create_request("OBJECT_PUT", uri = uri, headers = headers)
         labels = { 'source' : unicodise(filename), 'destination' : unicodise(uri.uri()), 'extra' : extra_label }
-        response = self.send_file(request, file, labels)
+        response = self.send_file(request, stream, labels)
         return response
 
     def object_get(self, uri, stream, start_position = 0, extra_label = ""):
@@ -1196,10 +1196,10 @@ class S3(object):
 
         return response
 
-    def send_file_multipart(self, file, headers, uri, size):
+    def send_file_multipart(self, stream, headers, uri, size):
         chunk_size = self.config.multipart_chunk_size_mb * 1024 * 1024
         timestamp_start = time.time()
-        upload = MultiPartUpload(self, file, uri, headers)
+        upload = MultiPartUpload(self, stream, uri, headers)
         upload.upload_all_parts()
         response = upload.complete_multipart_upload()
         timestamp_end = time.time()
@@ -1324,7 +1324,7 @@ class S3(object):
         else:
             # Otherwise try to compute MD5 of the output file
             try:
-                response["md5"] = hash_file_md5(stream.name)
+                response["md5"] = calculateChecksum(stream = stream, chunk_size = size_total)
             except IOError, e:
                 if e.errno != errno.ENOENT:
                     warning("Unable to open file: %s: %s" % (stream.name, e))

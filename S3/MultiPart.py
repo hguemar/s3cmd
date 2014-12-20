@@ -15,9 +15,9 @@ class MultiPartUpload(object):
     MAX_CHUNK_SIZE_MB = 5120    # 5GB
     MAX_FILE_SIZE = 42949672960 # 5TB
 
-    def __init__(self, s3, file, uri, headers_baseline = {}):
+    def __init__(self, s3, stream, uri, headers_baseline = {}):
         self.s3 = s3
-        self.file = file
+        self.stream = stream # class file
         self.uri = uri
         self.parts = {}
         self.headers_baseline = headers_baseline
@@ -85,25 +85,25 @@ class MultiPartUpload(object):
 
         self.chunk_size = self.s3.config.multipart_chunk_size_mb * 1024 * 1024
 
-        if self.file.name != "<stdin>":
-                size_left = file_size = os.stat(self.file.name)[ST_SIZE]
+        if self.stream.name != "<stdin>":
+                size_left = file_size = os.stat(self.stream.name)[ST_SIZE]
                 nr_parts = file_size / self.chunk_size + (file_size % self.chunk_size and 1)
-                debug("MultiPart: Uploading %s in %d parts" % (self.file.name, nr_parts))
+                debug("MultiPart: Uploading %s in %d parts" % (self.stream.name, nr_parts))
         else:
-            debug("MultiPart: Uploading from %s" % (self.file.name))
+            debug("MultiPart: Uploading from %s" % (self.stream.name))
 
         remote_statuses = dict()
         if self.s3.config.put_continue:
             remote_statuses = self.get_parts_information(self.uri, self.upload_id)
 
         seq = 1
-        if self.file.name != "<stdin>":
+        if self.stream.name != "<stdin>":
             while size_left > 0:
                 offset = self.chunk_size * (seq - 1)
                 current_chunk_size = min(file_size - offset, self.chunk_size)
                 size_left -= current_chunk_size
                 labels = {
-                    'source' : unicodise(self.file.name),
+                    'source' : unicodise(self.stream.name),
                     'destination' : unicodise(self.uri.uri()),
                     'extra' : "[part %d of %d, %s]" % (seq, nr_parts, "%d%sB" % formatSize(current_chunk_size, human_readable = True))
                 }
@@ -111,16 +111,16 @@ class MultiPartUpload(object):
                     self.upload_part(seq, offset, current_chunk_size, labels, remote_status = remote_statuses.get(seq))
                 except:
                     error(u"\nUpload of '%s' part %d failed. Use\n  %s abortmp %s %s\nto abort the upload, or\n  %s --upload-id %s put ...\nto continue the upload."
-                          % (self.file.name, seq, sys.argv[0], self.uri, self.upload_id, sys.argv[0], self.upload_id))
+                          % (self.stream.name, seq, sys.argv[0], self.uri, self.upload_id, sys.argv[0], self.upload_id))
                     raise
                 seq += 1
         else:
             while True:
-                buffer = self.file.read(self.chunk_size)
+                buffer = self.stream.read(self.chunk_size)
                 offset = self.chunk_size * (seq - 1)
                 current_chunk_size = len(buffer)
                 labels = {
-                    'source' : unicodise(self.file.name),
+                    'source' : unicodise(self.stream.name),
                     'destination' : unicodise(self.uri.uri()),
                     'extra' : "[part %d, %s]" % (seq, "%d%sB" % formatSize(current_chunk_size, human_readable = True))
                 }
@@ -130,7 +130,7 @@ class MultiPartUpload(object):
                     self.upload_part(seq, offset, current_chunk_size, labels, buffer, remote_status = remote_statuses.get(seq))
                 except:
                     error(u"\nUpload of '%s' part %d failed. Use\n  %s abortmp %s %s\nto abort, or\n  %s --upload-id %s put ...\nto continue the upload."
-                          % (self.file.name, seq, self.uri, sys.argv[0], self.upload_id, sys.argv[0], self.upload_id))
+                          % (self.stream.name, seq, self.uri, sys.argv[0], self.upload_id, sys.argv[0], self.upload_id))
                     raise
                 seq += 1
 
@@ -146,7 +146,7 @@ class MultiPartUpload(object):
 
         if remote_status is not None:
             if int(remote_status['size']) == chunk_size:
-                checksum = calculateChecksum(buffer, self.file, offset, chunk_size, self.s3.config.send_chunk)
+                checksum = calculateChecksum(buffer = buffer, stream = self.stream, offset = offset, chunk_size = chunk_size)
                 remote_checksum = remote_status['checksum'].strip('"\'')
                 if remote_checksum == checksum:
                     warning("MultiPart: size and md5sum match for %s part %d, skipping." % (self.uri, seq))
@@ -162,7 +162,7 @@ class MultiPartUpload(object):
         headers = { "content-length": chunk_size }
         query_string = "?partNumber=%i&uploadId=%s" % (seq, self.upload_id)
         request = self.s3.create_request("OBJECT_PUT", uri = self.uri, headers = headers, extra = query_string)
-        response = self.s3.send_file(request, self.file, labels, buffer, offset = offset, chunk_size = chunk_size)
+        response = self.s3.send_file(request, self.stream, labels, buffer, offset = offset, chunk_size = chunk_size)
         self.parts[seq] = response["headers"]["etag"]
         return response
 

@@ -233,19 +233,6 @@ def mktmpfile(prefix = os.getenv('TMP','/tmp') + "/tmpfile-", randchars = 20):
     return mktmpsomething(prefix, randchars, createfunc)
 __all__.append("mktmpfile")
 
-def hash_file_md5(filename):
-    h = md5()
-    f = open(filename, "rb")
-    while True:
-        # Hash 32kB chunks
-        data = f.read(32*1024)
-        if not data:
-            break
-        h.update(data)
-    f.close()
-    return h.hexdigest()
-__all__.append("hash_file_md5")
-
 def mkdir_with_parents(dir_name):
     """
     mkdir_with_parents(dst_dir)
@@ -444,18 +431,31 @@ def getHostnameFromBucket(bucket):
 __all__.append("getHostnameFromBucket")
 
 
-def calculateChecksum(buffer, mfile, offset, chunk_size, send_chunk):
+def calculateChecksum(buffer = '', filename = '', stream = None, offset = 0, chunk_size = None, send_chunk = 32*1024):
     md5_hash = md5()
     size_left = chunk_size
-    if buffer == '':
-        mfile.seek(offset)
-        while size_left > 0:
-            data = mfile.read(min(send_chunk, size_left))
-            md5_hash.update(data)
-            size_left -= len(data)
-    else:
-        md5_hash.update(buffer)
+    opened = False
 
+    if buffer and len(buffer):
+        md5_hash.update(buffer[offset:])
+        return md5_hash.hexdigest()
+
+    elif filename != '':
+        stream = open(filename, 'rb')
+        opened = True
+
+    if size_left is None and stream:
+        sr = os.stat_result(os.fstat(stream.fileno()))
+        size_left = sr.st_size
+
+    stream.seek(offset)
+    while size_left > 0:
+        data = stream.read(min(send_chunk, size_left))
+        md5_hash.update(data)
+        size_left -= len(data)
+
+    if opened:
+        stream.close()
     return md5_hash.hexdigest()
 
 

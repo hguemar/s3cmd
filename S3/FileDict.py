@@ -32,7 +32,7 @@ class FileDict(SortedDict):
         except:
             return None
 
-    def get_md5(self, relative_file):
+    def get_md5(self, relative_file, size = None):
         """returns md5 if it can, or raises IOError if file is unreadable"""
         md5 = None
         if 'md5' in self[relative_file]:
@@ -40,7 +40,7 @@ class FileDict(SortedDict):
         md5 = self.get_hardlink_md5(relative_file)
         if md5 is None and 'md5' in cfg.sync_checks:
             logging.debug(u"doing file I/O to read md5 of %s" % relative_file)
-            md5 = Utils.hash_file_md5(self[relative_file]['full_name'])
+            md5 = Utils.calculateChecksum(filename = self[relative_file]['full_name'], chunk_size = size)
         self.record_md5(relative_file, md5)
         self[relative_file]['md5'] = md5
         return md5

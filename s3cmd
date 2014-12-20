@@ -1865,9 +1865,9 @@ def run_configure(config_file, args):
                         ret_enc = gpg_encrypt(filename)
                         ret_dec = gpg_decrypt(ret_enc[1], ret_enc[2], False)
                         hash = [
-                            Utils.hash_file_md5(filename),
-                            Utils.hash_file_md5(ret_enc[1]),
-                            Utils.hash_file_md5(ret_dec[1]),
+                            Utils.calculateChecksum(filename = filename),
+                            Utils.calculateChecksum(filename = ret_enc[1]),
+                            Utils.calculate_checksum(filename = ret_dec[1]),
                         ]
                         os.unlink(filename)
                         os.unlink(ret_enc[1])
