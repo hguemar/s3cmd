@@ -11,6 +11,8 @@ from FileDict import FileDict
 from Utils import *
 from Exceptions import ParameterError
 from HashCache import HashCache
+import FileObject
+import RemoteObject
 
 from logging import debug, info, warning, error
 
@@ -171,30 +173,14 @@ def fetch_local_list(args, is_src = False, recursive = None):
 
             if relative_file == '-': continue
 
-            full_name = loc_list[relative_file]['full_name']
-            try:
-                sr = os.stat_result(os.stat(full_name))
-            except OSError, e:
-                if e.errno == errno.ENOENT:
-                    # file was removed async to us getting the list
-                    continue
-                else:
-                    raise
-            loc_list[relative_file].update({
-                'size' : sr.st_size,
-                'mtime' : sr.st_mtime,
-                'dev'   : sr.st_dev,
-                'inode' : sr.st_ino,
-                'uid' : sr.st_uid,
-                'gid' : sr.st_gid,
-                'sr': sr # save it all, may need it in preserve_attrs_list
-                ## TODO: Possibly more to save here...
-            })
+            fileobj = loc_list[relative_file]
+            sr = fileobj.sr()
+
             if 'md5' in cfg.sync_checks:
                 md5 = cache.md5(sr.st_dev, sr.st_ino, sr.st_mtime, sr.st_size)
                 if md5 is None:
                         try:
-                            md5 = loc_list.get_md5(relative_file, sr.st_size) # this does the file I/O
+                            md5 = fileobj.md5() # this does the file I/O
                         except IOError:
                             continue
                         cache.add(sr.st_dev, sr.st_ino, sr.st_mtime, sr.st_size, md5)
@@ -256,10 +242,10 @@ def fetch_local_list(args, is_src = False, recursive = None):
                     relative_file = replace_nonprintables(relative_file)
                 if relative_file.startswith('./'):
                     relative_file = relative_file[2:]
-                loc_list[relative_file] = {
-                    'full_name_unicode' : unicodise(full_name),
-                    'full_name' : full_name,
-                }
+
+                fileobj = FileObject.FileObject(full_name)
+                fileobj.relative_file = relative_file
+                loc_list[relative_file] = fileobj
 
         return loc_list, single_file
 
@@ -271,7 +257,8 @@ def fetch_local_list(args, is_src = False, recursive = None):
         if cfg.cache_file and len(cfg.files_from) == 0:
             cache.mark_all_for_purge()
             for i in local_list.keys():
-                cache.unmark_for_purge(local_list[i]['dev'], local_list[i]['inode'], local_list[i]['mtime'], local_list[i]['size'])
+                sr = local_list[i].sr()
+                cache.unmark_for_purge(sr.st_dev, sr.st_inode, sr.st_mtime, sr.st_size)
             cache.purge()
             cache.save(cfg.cache_file)
 
@@ -319,16 +306,15 @@ def fetch_local_list(args, is_src = False, recursive = None):
     return local_list, single_file, exclude_list
 
 def fetch_remote_list(args, require_attribs = False, recursive = None, uri_params = {}):
-    def _get_remote_attribs(uri, remote_item):
+    def _get_remote_attribs(uri, remobj):
         response = S3(cfg).object_info(uri)
-        remote_item.update({
-        'size': int(response['headers']['content-length']),
-        'md5': response['headers']['etag'].strip('"\''),
-        'timestamp' : dateRFC822toUnix(response['headers']['date'])
-        })
+        remobj._size = int(response['headers']['content-length'])
+        remobj._md5 = response['headers']['etag'].strip('"\'')
+        remobj.timestamp = dateRFC822toUnix(response['headers']['date'])
+
         try:
             md5 = response['s3cmd-attrs']['md5']
-            remote_item.update({'md5': md5})
+            remobj.md5 = md5
             debug(u"retreived md5=%s from headers" % md5)
         except KeyError:
             pass
@@ -378,19 +364,19 @@ def fetch_remote_list(args, require_attribs = False, recursive = None, uri_param
                 # Objects may exist on S3 with empty names (''), which don't map so well to common filesystems.
                 warning(u"Empty object name on S3 found, ignoring.")
                 continue
-            rem_list[key] = {
-                'size' : int(object['Size']),
-                'timestamp' : dateS3toUnix(object['LastModified']), ## Sadly it's upload time, not our lastmod time :-(
-                'md5' : object['ETag'].strip('"\''),
-                'object_key' : object['Key'],
-                'object_uri_str' : object_uri_str,
-                'base_uri' : remote_uri,
-                'dev' : None,
-                'inode' : None,
-            }
-            if '-' in rem_list[key]['md5']: # always get it for multipart uploads
+
+            remobj = RemoteObject.RemoteObject()
+            remobj._size = int(object['Size'])
+            remobj.timestamp = dateS3toUnix(object['LastModified']) ## Sadly it's upload time, not our lastmod time :-(
+            remobj._md5 = object['ETag'].strip('"\'')
+            remobj.object_key = object['Key']
+            remobj.object_uri_str = object_uri_str
+            remobj.base_uri = remote_uri
+            rem_list[key] = remobj
+
+            if '-' in rem_list[key].md5(): # always get it for multipart uploads
                 _get_remote_attribs(S3Uri(object_uri_str), rem_list[key])
-            md5 = rem_list[key]['md5']
+            md5 = rem_list[key].md5()
             rem_list.record_md5(key, md5)
             if break_now:
                 break
@@ -432,23 +418,22 @@ def fetch_remote_list(args, require_attribs = False, recursive = None, uri_param
                 objectlist = _get_filelist_remote(S3Uri(prefix), recursive = need_recursion)
                 for key in objectlist:
                     ## Check whether the 'key' matches the requested wildcards
-                    if glob.fnmatch.fnmatch(objectlist[key]['object_uri_str'], uri_str):
+                    if glob.fnmatch.fnmatch(objectlist[key].object_uri_str, uri_str):
                         remote_list[key] = objectlist[key]
             else:
                 ## No wildcards - simply append the given URI to the list
                 key = os.path.basename(uri.object())
                 if not key:
                     raise ParameterError(u"Expecting S3 URI with a filename or --recursive: %s" % uri.uri())
-                remote_item = {
-                    'base_uri': uri,
-                    'object_uri_str': unicode(uri),
-                    'object_key': uri.object()
-                }
+                remote_item = RemoteObject.RemoteObject()
+                remote_item.base_uri = uri
+                remote_item.object_uri_str= unicode(uri)
+                remote_item.object_key = uri.object()
                 if require_attribs:
                     _get_remote_attribs(uri, remote_item)
 
                 remote_list[key] = remote_item
-                md5 = remote_item.get('md5')
+                md5 = remote_item.md5()
                 if md5:
                     remote_list.record_md5(key, md5)
 
@@ -469,16 +454,15 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote, delay_updates 
 
         ## check size first
         if 'size' in cfg.sync_checks:
-            if 'size' in dst_list[file] and 'size' in src_list[file]:
-                if dst_list[file]['size'] != src_list[file]['size']:
-                    debug(u"xfer: %s (size mismatch: src=%s dst=%s)" % (file, src_list[file]['size'], dst_list[file]['size']))
-                    attribs_match = False
+            if dst_list[file].size() != src_list[file].size():
+                debug(u"xfer: %s (size mismatch: src=%s dst=%s)" % (file, src_list[file].size(), dst_list[file].size()))
+                attribs_match = False
 
         ## check md5
         compare_md5 = 'md5' in cfg.sync_checks
         # Multipart-uploaded files don't have a valid md5 sum - it ends with "...-nn"
         if compare_md5:
-            if (src_remote == True and '-' in src_list[file]['md5']) or (dst_remote == True and '-' in dst_list[file]['md5']):
+            if (src_remote == True and '-' in src_list[file].md5()) or (dst_remote == True and '-' in dst_list[file].md5()):
                 compare_md5 = False
                 info(u"disabled md5 check for %s" % file)
         if attribs_match and compare_md5:

@@ -608,7 +608,7 @@ class S3(object):
             body = body.encode('utf-8')
             return body
 
-        batch = [remote_list[item]['object_uri_str'] for item in remote_list]
+        batch = [remote_list[item].object_uri_str for item in remote_list]
         if len(batch) == 0:
             raise ValueError("Key list is empty")
         bucket = S3Uri(batch[0]).bucket()
