@@ -378,7 +378,7 @@ def cmd_object_put(args):
             debug(u"attr_header: %s" % attr_header)
             extra_headers.update(attr_header)
         try:
-            response = s3.object_put(full_name, uri_final, extra_headers, extra_label = seq_label)
+            response = s3.object_put(fileobj, uri_final, extra_headers, extra_label = seq_label)
         except S3UploadError, e:
             error(u"Upload of '%s' failed too many times. Skipping that file." % full_name_orig)
             continue
@@ -886,13 +886,12 @@ def cmd_sync_remote2remote(args):
         subcmd_batch_del(remote_list = dst_list)
 
     def _upload(src_list, seq, src_count):
-        file_list = src_list.keys()
-        file_list.sort()
+        file_list = sorted(src_list.keys())
         for file in file_list:
             seq += 1
-            item = src_list[file]
-            src_uri = S3Uri(item.object_uri_str)
-            dst_uri = S3Uri(item.target_uri)
+            fileobj = src_list[file]
+            src_uri = S3Uri(fileobj.object_uri_str)
+            dst_uri = S3Uri(fileobj.target_uri)
             seq_label = "[%d of %d]" % (seq, src_count)
             extra_headers = copy(cfg.extra_headers)
             try:
@@ -1295,8 +1294,7 @@ def cmd_sync_local2remote(args):
                         local_list[key].remote_uri_str = unicodise(destination_base + key)
 
         def _upload(local_list, seq, total, total_size):
-            file_list = local_list.keys()
-            file_list.sort()
+            file_list = sorted(local_list.keys())
             for file in file_list:
                 seq += 1
 		fileobj = local_list[file]
@@ -1309,7 +1307,7 @@ def cmd_sync_local2remote(args):
                         attr_header = _build_attr_header(fileobj)
                         debug(u"attr_header: %s" % attr_header)
                         extra_headers.update(attr_header)
-                    response = s3.object_put(src, uri, extra_headers, extra_label = seq_label)
+                    response = s3.object_put(fileobj, uri, extra_headers, extra_label = seq_label)
                 except InvalidFileError, e:
                     warning(u"File can not be uploaded: %s" % e)
                     continue
@@ -1865,9 +1863,9 @@ def run_configure(config_file, args):
                         ret_enc = gpg_encrypt(filename)
                         ret_dec = gpg_decrypt(ret_enc[1], ret_enc[2], False)
                         hash = [
-                            Utils.calculateChecksum(filename = filename),
-                            Utils.calculateChecksum(filename = ret_enc[1]),
-                            Utils.calculate_checksum(filename = ret_dec[1]),
+                            Utils.calculateChecksum(filename = filename)[0],
+                            Utils.calculateChecksum(filename = ret_enc[1])[0],
+                            Utils.calculate_checksum(filename = ret_dec[1])[0],
                         ]
                         os.unlink(filename)
                         os.unlink(ret_enc[1])

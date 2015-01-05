@@ -44,6 +44,8 @@ if sys.version_info[0] == 2 and sys.version_info[1] < 6:
 else:
     from hashlib import md5, sha1
 
+from hashlib import sha256
+
 try:
     import xml.etree.ElementTree as ET
 except ImportError:
@@ -432,13 +434,16 @@ __all__.append("getHostnameFromBucket")
 
 
 def calculateChecksum(buffer = '', filename = '', stream = None, offset = 0, chunk_size = None, send_chunk = 32*1024):
+    debug(u'calculateChecksum(buffer=%s, filename=%s, stream=%s' % (buffer, filename, stream))
     md5_hash = md5()
+    sha256_hash = sha256()
     size_left = chunk_size
     opened = False
 
     if buffer and len(buffer):
         md5_hash.update(buffer[offset:])
-        return md5_hash.hexdigest()
+        sha256_hash.update(buffer[offset:])
+        return (md5_hash.hexdigest(), sha256_hash.hexdigest())
 
     elif filename != '':
         stream = open(filename, 'rb')
@@ -452,11 +457,12 @@ def calculateChecksum(buffer = '', filename = '', stream = None, offset = 0, chu
     while size_left > 0:
         data = stream.read(min(send_chunk, size_left))
         md5_hash.update(data)
+        sha256_hash.update(data)
         size_left -= len(data)
 
     if opened:
         stream.close()
-    return md5_hash.hexdigest()
+    return (md5_hash.hexdigest(), sha256_hash.hexdigest())
 
 
 __all__.append("calculateChecksum")

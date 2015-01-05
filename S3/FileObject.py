@@ -1,5 +1,10 @@
 import os
+import sys
+from logging import debug
 import Utils
+import Config
+
+cfg = Config.Config()
 
 class FileObject(object):
     def __init__(self, filename):
@@ -14,10 +19,17 @@ class FileObject(object):
         return Utils.unicodise(self.filename)
 
     def md5(self):
+        if 'md5' not in cfg.sync_checks:
+            return None
         if self._md5 is None:
-            self._md5 = Utils.calculateChecksum(filename = self.filename, stream = self.stream)
+            self._md5, self._sha256 = Utils.calculateChecksum(filename = self.filename, stream = self.stream)
         return self._md5
 
+    def sha256(self):
+        if self._sha256 is None:
+            self._md5, self._sha256 = Utils.calculateChecksum(filename = self.filename, stream = self.stream)
+        debug(u'returning sha256 of %s = %s' % (self.filename, self._sha256))
+        return self._sha256
 
     def sr(self):
         """
@@ -28,4 +40,6 @@ class FileObject(object):
         return self._sr
 
     def size(self):
+        if self.stream == sys.stdin:
+            return 0
         return self.sr().st_size

@@ -74,7 +74,7 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     kSigning = sign(kService, 'aws4_request')
     return kSigning
 
-def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='us-east-1', cur_headers={}, body=''):
+def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='us-east-1', cur_headers={}, body='', file_sha256=None):
     service = 's3'
 
     cfg = Config.Config()
@@ -92,9 +92,12 @@ def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='
     canonical_uri = quote_param(splits[0], quote_backslashes=False)
     canonical_querystring += '&'.join([('%s' if '=' in qs else '%s=') % qs for qs in splits[1:]])
 
-    if type(body) == type(sha256('')):
-        payload_hash = body.hexdigest()
+
+    if file_sha256:
+        debug(u'using payload_hash = file_sha256=%s!' % file_sha256)
+        payload_hash = file_sha256
     else:
+        debug(u'calculating hash of body=%s !' % body)
         payload_hash = sha256(body).hexdigest()
 
     canonical_headers = 'host:' + host + '\n' + 'x-amz-content-sha256:' + payload_hash + '\n' + 'x-amz-date:' + amzdate + '\n'
@@ -130,20 +133,3 @@ def quote_param(param, quote_backslashes=True):
     if not quote_backslashes:
         quoted = quoted.replace('%2F', '/')
     return quoted
-
-def checksum_sha256(filename, offset=0, size=None):
-    canonical_uri = urllib.quote_plus(filename, safe='~').replace('%2F', '/')
-    try:
-        hash = sha256()
-    except:
-        # fallback to Crypto SHA256 module
-        hash = sha256.new()
-    with open(filename,'rb') as f:
-        if size is None:
-            for chunk in iter(lambda: f.read(8192), b''):
-                hash.update(chunk)
-        else:
-            f.seek(offset)
-            chunk = f.read(size)
-            hash.update(chunk)
-    return hash
