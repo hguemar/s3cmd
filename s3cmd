@@ -2534,7 +2534,7 @@ if __name__ == '__main__':
         from S3.CloudFront import CloudFront
         from S3.FileLists import *
         from S3.MultiPart import MultiPartUpload
-    except Exception as e:
+    except Exception, e:
         report_exception(e, "Error loading some components of s3cmd (Import Error)")
         # 1 = EX_GENERAL but be safe in that situation
         sys.exit(1)

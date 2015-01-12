@@ -15,13 +15,34 @@ import os
 import datetime
 import urllib
 
-# hashlib backported to python 2.4 / 2.5 is not compatible with hmac!
-if sys.version_info[0] == 2 and sys.version_info[1] < 6:
-    from md5 import md5
+#
+# the following is necessary because of the incompatibilities
+# between Python 2.4, 2.5, and 2.6 as well as the fact that some
+# people running 2.4 have installed hashlib as a separate module
+# this fix was provided by boto user mccormix.
+# see: http://code.google.com/p/boto/issues/detail?id=172
+# for more details.
+#
+try:
+    from hashlib import sha1
+    from hashlib import sha256
+    if sys.version[:3] == "2.4":
+        # we are using an hmac that expects .new() and __call__() methods.
+        class Faker:
+            def __init__(self, which):
+                self.which = which
+                self.digest_size = self.which().digest_size
+            def new(self, *args, **kwargs):
+                return self.which(*args, **kwargs)
+            def __call__(self, *args, **kwargs):
+                return self.which(*args, **kwargs)
+                        
+        sha1 = Faker(sha1)
+        sha256 = Faker(sha256)
+except ImportError:
     import sha as sha1
-    from Crypto.Hash import SHA256 as sha256
-else:
-    from hashlib import md5, sha1, sha256
+    sha256 = None
+
 
 __all__ = []
 
@@ -85,12 +106,16 @@ def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='
     amzdate = t.strftime('%Y%m%dT%H%M%SZ')
     datestamp = t.strftime('%Y%m%d')
 
-    canonical_querystring = '&'.join(['%s=%s' % (urllib.quote_plus(p), quote_param(params[p])) for p in sorted(params.keys())])
-
     splits = canonical_uri.split('?')
-
     canonical_uri = quote_param(splits[0], quote_backslashes=False)
-    canonical_querystring += '&'.join([('%s' if '=' in qs else '%s=') % qs for qs in splits[1:]])
+    canonical_querystring = ''
+    qs_array = []
+    for qs in splits[1:]:
+        replacement = '%s='
+        if '=' in qs:
+            replacement = '%s'
+        qs_array.append(replacement % qs)
+    canonical_querystring += '&'.join(qs_array)
 
     if type(body) == type(sha256('')):
         payload_hash = body.hexdigest()
@@ -138,12 +163,15 @@ def checksum_sha256(filename, offset=0, size=None):
     except:
         # fallback to Crypto SHA256 module
         hash = sha256.new()
-    with open(filename,'rb') as f:
-        if size is None:
-            for chunk in iter(lambda: f.read(8192), b''):
-                hash.update(chunk)
-        else:
-            f.seek(offset)
-            chunk = f.read(size)
+    f = open(filename, 'rb')
+    if size is None:
+        while True:
+            chunk = chunk = f.read(8192)
+            if not chunk:
+                break
             hash.update(chunk)
+    else:
+        f.seek(offset)
+        chunk = f.read(size)
+        hash.update(chunk)
     return hash
