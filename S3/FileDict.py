@@ -21,6 +21,7 @@ class FileDict(SortedDict):
     def record_md5(self, relative_file, md5):
         if md5 is None: return
         if md5 == zero_length_md5: return
+        if '-' in md5: return
         if md5 not in self.by_md5:
             self.by_md5[md5] = set()
         self.by_md5[md5].add(relative_file)

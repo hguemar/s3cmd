@@ -320,21 +320,18 @@ def fetch_local_list(args, is_src = False, recursive = None):
     _maintain_cache(cache, local_list)
     return local_list, single_file, exclude_list
 
-def fetch_remote_list(args, require_attribs = False, recursive = None, uri_params = {}):
-    def _get_remote_attribs(uri, remote_item):
-        response = S3(cfg).object_info(uri)
-        remote_item.update({
-        'size': int(response['headers']['content-length']),
-        'md5': response['headers']['etag'].strip('"\''),
-#       'timestamp' : dateRFC822toUnix(response['headers']['date']) # FIXME MD - this is the timestamp of the request, not the item
-        })
-        try:
-            md5 = response['s3cmd-attrs']['md5']
-            remote_item.update({'md5': md5})
-            debug(u"retreived md5=%s from headers" % md5)
-        except KeyError:
-            pass
+def _get_remote_attribs(uri, remote_item):
+    cfg = Config()
+    response = S3(cfg).object_info(uri)
+    try:
+        md5 = response['s3cmd-attrs']['md5']
+        remote_item.update({'md5': md5})
+        debug(u"retreived md5=%s from headers" % md5)
+    except KeyError:
+        pass
 
+
+def fetch_remote_list(args, require_attribs = False, recursive = None, uri_params = {}):
     def _get_filelist_remote(remote_uri, recursive = True):
         ## If remote_uri ends with '/' then all remote files will have
         ## the remote_uri prefix removed in the relative path.
@@ -390,8 +387,6 @@ def fetch_remote_list(args, require_attribs = False, recursive = None, uri_param
                 'dev' : None,
                 'inode' : None,
             }
-            if '-' in rem_list[key]['md5']: # always get it for multipart uploads
-                _get_remote_attribs(S3Uri(object_uri_str), rem_list[key])
             md5 = rem_list[key]['md5']
             rem_list.record_md5(key, md5)
             if break_now:
@@ -446,8 +441,6 @@ def fetch_remote_list(args, require_attribs = False, recursive = None, uri_param
                     'object_uri_str': unicode(uri),
                     'object_key': uri.object()
                 }
-                if require_attribs:
-                    _get_remote_attribs(uri, remote_item)
 
                 remote_list[key] = remote_item
                 md5 = remote_item.get('md5')
@@ -474,13 +467,24 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote, delay_updates 
             if 'size' in dst_list[file] and 'size' in src_list[file]:
                 if dst_list[file]['size'] != src_list[file]['size']:
                     debug(u"xfer: %s (size mismatch: src=%s dst=%s)" % (file, src_list[file]['size'], dst_list[file]['size']))
-                    attribs_match = False
+                    return False
 
         ## check md5
         compare_md5 = 'md5' in cfg.sync_checks
-        # Multipart-uploaded files don't have a valid md5 sum - it ends with "...-nn"
         if compare_md5:
-            if (src_remote == True and '-' in src_list[file]['md5']) or (dst_remote == True and '-' in dst_list[file]['md5']):
+            src_md5 = src_list[file].get('md5', '')
+            dst_md5 = dst_list[file].get('md5', '')
+            debug(u"src file %s md5 = %s" % (file, src_md5))
+            debug(u"dst file %s md5 = %s" % (file, dst_md5))
+            if (src_remote == True and '-' in src_md5):
+                _get_remote_attribs(S3Uri(src_list[file]['object_uri_str']), src_list[file])
+                src_md5 = src_list[file].get('md5', '')
+            if (dst_remote == True and '-' in dst_md5):
+                _get_remote_attribs(S3Uri(dst_list[file]['object_uri_str']), dst_list[file])
+                dst_md5 = dst_list[file].get('md5', '')
+        # Multipart-uploaded files don't have a valid md5 sum - it ends with "...-nn"
+        # and we weren't able to get the real md5 from metadata
+            if '-' in src_md5 or '-' in dst_md5:
                 compare_md5 = False
                 info(u"disabled md5 check for %s" % file)
         if attribs_match and compare_md5:
