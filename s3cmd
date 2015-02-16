@@ -586,6 +586,7 @@ def subcmd_batch_del(uri_str = None, bucket = None, remote_list = None):
 
     def _batch_del(remote_list):
         s3 = S3(cfg)
+        response = dict(status=200)
         to_delete = remote_list[:1000]
         remote_list = remote_list[1000:]
         while len(to_delete):
@@ -595,6 +596,9 @@ def subcmd_batch_del(uri_str = None, bucket = None, remote_list = None):
             output('\n'.join((u"File %s deleted" % to_delete[p]['object_uri_str']) for p in to_delete))
             to_delete = remote_list[:1000]
             remote_list = remote_list[1000:]
+            if response["status"] == 403:
+                break
+        return response
 
     if remote_list is not None and len(remote_list) == 0:
         return False
@@ -615,11 +619,16 @@ def subcmd_batch_del(uri_str = None, bucket = None, remote_list = None):
         warning(u"delete: maximum requested number of deletes would be exceeded, none performed.")
         return EX_OK
 
-    _batch_del(remote_list)
+    response = _batch_del(remote_list)
+    if response["status"] == 403:
+        ## returned by Scality server which doesn't implement multi-object delete
+        ## fall back to individual deletions
+        for key in remote_list:
+            item = remote_list[key]
+            if cfg.dry_run:
+                response = s3.object_delete(S3Uri(item['object_uri_str']))
+            output(u"File %s deleted" % item['object_uri_str'])
 
-    if cfg.dry_run:
-        warning(u"Exiting now because of --dry-run")
-        return EX_OK
     return EX_OK
 
 def subcmd_object_del_uri(uri_str, recursive = None):
