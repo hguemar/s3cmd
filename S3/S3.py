@@ -987,7 +987,7 @@ class S3(object):
                         return fn(*args, **kwargs)
 
         error(u"S3 error: %s" % message)
-        sys.exit(ExitCodes.EX_GENERAL)
+        raise S3Error(response)
 
     def send_request(self, request, retries = _max_retries):
         method_string, resource, headers = request.get_triplet()

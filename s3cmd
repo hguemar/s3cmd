@@ -586,18 +586,18 @@ def subcmd_batch_del(uri_str = None, bucket = None, remote_list = None):
 
     def _batch_del(remote_list):
         s3 = S3(cfg)
-        response = dict(status=200)
         to_delete = remote_list[:1000]
         remote_list = remote_list[1000:]
         while len(to_delete):
             debug(u"Batch delete %d, remaining %d" % (len(to_delete), len(remote_list)))
             if not cfg.dry_run:
-                response = s3.object_batch_delete(to_delete)
+                try:
+                    response = s3.object_batch_delete(to_delete)
+                except S3Error, response:
+                    break
             output('\n'.join((u"File %s deleted" % to_delete[p]['object_uri_str']) for p in to_delete))
             to_delete = remote_list[:1000]
             remote_list = remote_list[1000:]
-            if response["status"] == 403:
-                break
         return response
 
     if remote_list is not None and len(remote_list) == 0:
