@@ -562,7 +562,7 @@ class S3(object):
             else:
                 file = open(deunicodise(filename), "rb")
                 size = os.stat(deunicodise(filename))[ST_SIZE]
-        except (IOError, OSError), e:
+        except (IOError, OSError) as e:
             raise InvalidFileError(u"%s" % e.strerror)
 
         headers = SortedDict(ignore_case = True)
@@ -1077,7 +1077,7 @@ class S3(object):
             raise
         except OSError:
             raise
-        except (IOError, Exception), e:
+        except (IOError, Exception) as e:
             if hasattr(e, 'errno') and e.errno != errno.EPIPE:
                 raise
             # close the connection and re-establish
@@ -1338,7 +1338,7 @@ class S3(object):
             raise
         except OSError as e:
             raise
-        except (IOError, Exception), e:
+        except (IOError, Exception) as e:
             if self.config.progress_meter:
                 progress.done("failed")
             if hasattr(e, 'errno') and e.errno != errno.EPIPE:
@@ -1421,7 +1421,7 @@ class S3(object):
             ConnMan.put(conn)
         except OSError:
             raise
-        except (IOError, Exception), e:
+        except (IOError, Exception) as e:
             if self.config.progress_meter:
                 progress.done("failed")
             if hasattr(e, 'errno') and e.errno != errno.EPIPE:

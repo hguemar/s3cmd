@@ -1347,7 +1347,7 @@ def local_copy(copy_pairs, destination_base):
                 os.makedirs(deunicodise(dst_dir))
             debug(u"Copying %s to %s" % (src_file, dst_file))
             shutil.copy2(deunicodise(src_file), deunicodise(dst_file))
-        except (IOError, OSError), e:
+        except (IOError, OSError) as e:
             warning(u'Unable to hardlink or copy files %s -> %s (Reason: %s)' % (src_file, dst_file, e))
             failed_copy_list[relative_file] = src_obj
     return failed_copy_list
@@ -2810,11 +2810,11 @@ if __name__ == '__main__':
         report_exception(e)
         sys.exit(EX_GENERAL)
 
-    except (ParameterError, InvalidFileError), e:
+    except (ParameterError, InvalidFileError) as e:
         error(u"Parameter problem: %s" % e)
         sys.exit(EX_USAGE)
 
-    except (S3DownloadError, S3UploadError, S3RequestError), e:
+    except (S3DownloadError, S3UploadError, S3RequestError) as e:
         error(u"S3 Temporary Error: %s.  Please try again later." % e)
         sys.exit(EX_TEMPFAIL)
 
@@ -2822,7 +2822,7 @@ if __name__ == '__main__':
         error(u"S3 error: %s" % e)
         sys.exit(e.get_error_code())
 
-    except (S3Exception, S3ResponseError, CloudFrontError), e:
+    except (S3Exception, S3ResponseError, CloudFrontError) as e:
         report_exception(e)
         sys.exit(EX_SOFTWARE)
 

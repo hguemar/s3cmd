@@ -262,7 +262,7 @@ def mkdir_with_parents(dir_name):
         try:
             debug("mkdir(%s)" % cur_dir)
             os.mkdir(deunicodise(cur_dir))
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             debug("Can not make directory '%s' (Reason: %s)" % (cur_dir, e.strerror))
             return False
         except Exception as e:
