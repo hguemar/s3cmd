@@ -275,7 +275,7 @@ class Config(object):
             except ValueError:
                 try:
                     # otherwise it must be a key known to the logging module
-                    value = logging._levelNames[value]
+                    value = logging.getLevelName(value)
                 except KeyError:
                     error("Config: verbosity level '%s' is not valid" % value)
                     return
@@ -373,8 +373,8 @@ class ConfigDumper(object):
             value = getattr(config, option)
             if option == "verbosity":
                 # we turn level numbers back into strings if possible
-                if isinstance(value,int) and value in logging._levelNames:
-                    value = logging._levelNames[value]
+                if isinstance(value,int):
+                    value = logging.getLevelName(value)
 
             self.stream.write("%s = %s\n" % (option, value))
 
