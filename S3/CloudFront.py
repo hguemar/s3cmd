@@ -594,7 +594,7 @@ class CloudFront(object):
             debug("dist_list: %s" % CloudFront.dist_list)
         try:
             return CloudFront.dist_list[uri.bucket()]
-        except Exception, e:
+        except Exception as e:
             debug(e)
             raise ParameterError("Unable to translate S3 URI to CloudFront distribution name: %s" % uri)
 
