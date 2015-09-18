@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -9,8 +11,9 @@
 import os
 import re
 import sys
-from Utils import unicodise, deunicodise, check_bucket_name_dns_support
-import Config
+from .Utils import check_bucket_name_dns_support
+from .Unicode import unicodise, deunicodise
+from . import Config
 
 class S3Uri(object):
     type = None
@@ -185,39 +188,39 @@ class S3UriCloudFront(S3Uri):
 
 if __name__ == "__main__":
     uri = S3Uri("s3://bucket/object")
-    print "type()  =", type(uri)
-    print "uri     =", uri
-    print "uri.type=", uri.type
-    print "bucket  =", uri.bucket()
-    print "object  =", uri.object()
-    print
+    print("type()  =", type(uri))
+    print("uri     =", uri)
+    print("uri.type=", uri.type)
+    print("bucket  =", uri.bucket())
+    print("object  =", uri.object())
+    print()
 
     uri = S3Uri("s3://bucket")
-    print "type()  =", type(uri)
-    print "uri     =", uri
-    print "uri.type=", uri.type
-    print "bucket  =", uri.bucket()
-    print
+    print("type()  =", type(uri))
+    print("uri     =", uri)
+    print("uri.type=", uri.type)
+    print("bucket  =", uri.bucket())
+    print()
 
     uri = S3Uri("s3fs://filesystem1/path/to/remote/file.txt")
-    print "type()  =", type(uri)
-    print "uri     =", uri
-    print "uri.type=", uri.type
-    print "path    =", uri.path()
-    print
+    print("type()  =", type(uri))
+    print("uri     =", uri)
+    print("uri.type=", uri.type)
+    print("path    =", uri.path())
+    print()
 
     uri = S3Uri("/path/to/local/file.txt")
-    print "type()  =", type(uri)
-    print "uri     =", uri
-    print "uri.type=", uri.type
-    print "path    =", uri.path()
-    print
+    print("type()  =", type(uri))
+    print("uri     =", uri)
+    print("uri.type=", uri.type)
+    print("path    =", uri.path())
+    print()
 
     uri = S3Uri("cf://1234567890ABCD/")
-    print "type()  =", type(uri)
-    print "uri     =", uri
-    print "uri.type=", uri.type
-    print "dist_id =", uri.dist_id()
-    print
+    print("type()  =", type(uri))
+    print("uri     =", uri)
+    print("uri.type=", uri.type)
+    print("dist_id =", uri.dist_id())
+    print()
 
 # vim:et:ts=4:sts=4:ai

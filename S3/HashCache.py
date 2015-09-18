@@ -1,7 +1,8 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
-import cPickle as pickle
-from Utils import deunicodise
+import six.moves.cPickle as pickle
+from .Unicode import deunicodise
 
 class HashCache(object):
     def __init__(self):
@@ -25,9 +26,9 @@ class HashCache(object):
         return d['md5']
 
     def mark_all_for_purge(self):
-        for d in self.inodes.keys():
-            for i in self.inodes[d].keys():
-                for c in self.inodes[d][i].keys():
+        for d in list(self.inodes.keys()):
+            for i in list(self.inodes[d].keys()):
+                for c in list(self.inodes[d][i].keys()):
                     self.inodes[d][i][c]['purge'] = True
 
     def unmark_for_purge(self, dev, inode, mtime, size):
@@ -39,9 +40,9 @@ class HashCache(object):
             del self.inodes[dev][inode][mtime]['purge']
 
     def purge(self):
-        for d in self.inodes.keys():
-            for i in self.inodes[d].keys():
-                for m in self.inodes[d][i].keys():
+        for d in list(self.inodes.keys()):
+            for i in list(self.inodes[d].keys()):
+                for m in list(self.inodes[d][i].keys()):
                     if 'purge' in self.inodes[d][i][m]:
                         del self.inodes[d][i]
                         break

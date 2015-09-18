@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -7,13 +8,13 @@
 ## Copyright: TGRMN Software and contributors
 
 import sys
-import httplib
+import six.moves.http_client
 import ssl
 from threading import Semaphore
 from logging import debug
 
-from Config import Config
-from Exceptions import ParameterError
+from .Config import Config
+from .Exceptions import ParameterError
 
 if not 'CertificateError ' in ssl.__dict__:
     class CertificateError(Exception):
@@ -121,9 +122,9 @@ class http_connection(object):
                 # back.  We then run the same check, relaxed for S3's
                 # wildcard certificates.
                 context.check_hostname = False
-            conn = httplib.HTTPSConnection(hostname, port, context=context)
+            conn = six.moves.http_client.HTTPSConnection(hostname, port, context=context)
         except TypeError:
-            conn = httplib.HTTPSConnection(hostname, port)
+            conn = six.moves.http_client.HTTPSConnection(hostname, port)
         return conn
 
     def __init__(self, id, hostname, ssl, cfg):
@@ -133,10 +134,10 @@ class http_connection(object):
 
         if not ssl:
             if cfg.proxy_host != "":
-                self.c = httplib.HTTPConnection(cfg.proxy_host, cfg.proxy_port)
+                self.c = six.moves.http_client.HTTPConnection(cfg.proxy_host, cfg.proxy_port)
                 debug(u'proxied HTTPConnection(%s, %s)' % (cfg.proxy_host, cfg.proxy_port))
             else:
-                self.c = httplib.HTTPConnection(hostname)
+                self.c = six.moves.http_client.HTTPConnection(hostname)
                 debug(u'non-proxied HTTPConnection(%s)' % hostname)
         else:
             if cfg.proxy_host != "":
@@ -167,7 +168,7 @@ class ConnMan(object):
         else:
             conn_id = "http%s://%s" % (ssl and "s" or "", hostname)
         ConnMan.conn_pool_sem.acquire()
-        if not ConnMan.conn_pool.has_key(conn_id):
+        if conn_id not in ConnMan.conn_pool:
             ConnMan.conn_pool[conn_id] = []
         if len(ConnMan.conn_pool[conn_id]):
             conn = ConnMan.conn_pool[conn_id].pop()

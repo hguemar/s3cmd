@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 - Access Control List representation
@@ -6,7 +8,7 @@
 ## License: GPL Version 2
 ## Copyright: TGRMN Software and contributors
 
-from Utils import getTreeFromXml
+from .Utils import getTreeFromXml
 
 try:
     import xml.etree.ElementTree as ET
@@ -222,11 +224,11 @@ if __name__ == "__main__":
 </AccessControlPolicy>
     """
     acl = ACL(xml)
-    print "Grants:", acl.getGrantList()
+    print("Grants:", acl.getGrantList())
     acl.revokeAnonRead()
-    print "Grants:", acl.getGrantList()
+    print("Grants:", acl.getGrantList())
     acl.grantAnonRead()
-    print "Grants:", acl.getGrantList()
-    print acl
+    print("Grants:", acl.getGrantList())
+    print(acl)
 
 # vim:et:ts=4:sts=4:ai

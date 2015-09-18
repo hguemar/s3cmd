@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -15,24 +16,26 @@ import mimetypes
 from xml.sax import saxutils
 from logging import debug, info, warning, error
 from stat import ST_SIZE
-from urllib import quote_plus
+from urllib.parse import quote_plus
+import six
 
 try:
     from hashlib import md5
 except ImportError:
     from md5 import md5
 
-from Utils import *
-from SortedDict import SortedDict
-from AccessLog import AccessLog
-from ACL import ACL, GranteeLogDelivery
-from BidirMap import BidirMap
-from Config import Config
-from Exceptions import *
-from MultiPart import MultiPartUpload
-from S3Uri import S3Uri
-from ConnMan import ConnMan
-from Crypto import sign_string_v2, sign_string_v4, checksum_sha256_file, checksum_sha256_buffer
+from .Utils import *
+from .SortedDict import SortedDict
+from .AccessLog import AccessLog
+from .ACL import ACL, GranteeLogDelivery
+from .BidirMap import BidirMap
+from .Config import Config
+from .Exceptions import *
+from .MultiPart import MultiPartUpload
+from .S3Uri import S3Uri
+from .ConnMan import ConnMan
+from .Crypto import sign_string_v2, sign_string_v4, checksum_sha256_file, checksum_sha256_buffer
+from . import Progress 
 
 try:
     from ctypes import ArgumentError
@@ -132,7 +135,7 @@ class S3Request(object):
                 self.headers['x-amz-request-payer'] = 'requester'
 
     def update_timestamp(self):
-        if self.headers.has_key("date"):
+        if "date" in self.headers:
             del(self.headers["date"])
         self.headers["x-amz-date"] = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime())
 
@@ -258,7 +261,7 @@ class S3(object):
 
     def get_hostname(self, bucket):
         if bucket and check_bucket_name_dns_support(self.config.host_bucket, bucket):
-            if self.redir_map.has_key(bucket):
+            if bucket in self.redir_map:
                 host = self.redir_map[bucket]
             else:
                 host = getHostnameFromBucket(bucket)
@@ -609,7 +612,7 @@ class S3(object):
                 info = None
 
             if info is not None:
-                remote_size = long(info['headers']['content-length'])
+                remote_size = int(info['headers']['content-length'])
                 remote_checksum = info['headers']['etag'].strip('"\'')
                 if size == remote_size:
                     checksum = calculateChecksum('', file, 0, size, self.config.send_chunk)
@@ -960,7 +963,7 @@ class S3(object):
 
     ## Low level methods
     def urlencode_string(self, string, urlencoding_mode = None):
-        if type(string) == unicode:
+        if type(string) == six.text_type:
             string = string.encode("utf-8")
 
         if urlencoding_mode is None:
@@ -1068,7 +1071,7 @@ class S3(object):
             response["reason"] = http_response.reason
             response["headers"] = convertTupleListToDict(http_response.getheaders())
             response["data"] =  http_response.read()
-            if response["headers"].has_key("x-amz-meta-s3cmd-attrs"):
+            if "x-amz-meta-s3cmd-attrs" in response["headers"]:
                 attrs = parse_attrs_header(response["headers"]["x-amz-meta-s3cmd-attrs"])
                 response["s3cmd-attrs"] = attrs
             debug("Response: " + str(response))
@@ -1115,7 +1118,7 @@ class S3(object):
 
             if retries:
                 warning(u"Retrying failed request: %s" % resource['uri'])
-                warning(unicode(e))
+                warning(six.text_type(e))
                 warning("Waiting %d sec..." % self._fail_wait(retries))
                 time.sleep(self._fail_wait(retries))
                 return self.send_request(request, retries - 1)
@@ -1135,10 +1138,10 @@ class S3(object):
             if region is not None:
                 S3Request.region_map[request.resource['bucket']] = region
 
-        size_left = size_total = long(headers["content-length"])
+        size_left = size_total = int(headers["content-length"])
         filename = unicodise(file.name)
         if self.config.progress_meter:
-            progress = self.config.progress_class(labels, size_total)
+            progress = Progress.ProgressCR(labels, size_total)
         else:
             info("Sending file '%s', please wait..." % filename)
         timestamp_start = time.time()
@@ -1152,7 +1155,7 @@ class S3(object):
         try:
             conn = ConnMan.get(self.get_hostname(resource['bucket']))
             conn.c.putrequest(method_string, self.format_uri(resource))
-            for header in headers.keys():
+            for header in list(headers.keys()):
                 conn.c.putheader(header, str(headers[header]))
             conn.c.endheaders()
         except ParameterError as e:
@@ -1252,7 +1255,7 @@ class S3(object):
 
         # S3 from time to time doesn't send ETag back in a response :-(
         # Force re-upload here.
-        if not response['headers'].has_key('etag'):
+        if 'etag' not in response['headers']:
             response['headers']['etag'] = ''
 
         if response["status"] < 200 or response["status"] > 299:
@@ -1312,14 +1315,14 @@ class S3(object):
         method_string, resource, headers = request.get_triplet()
         filename = unicodise(stream.name)
         if self.config.progress_meter:
-            progress = self.config.progress_class(labels, 0)
+            progress = Progress.ProgressCR(labels, 0)
         else:
             info("Receiving file '%s', please wait..." % filename)
         timestamp_start = time.time()
         try:
             conn = ConnMan.get(self.get_hostname(resource['bucket']))
             conn.c.putrequest(method_string, self.format_uri(resource))
-            for header in headers.keys():
+            for header in list(headers.keys()):
                 conn.c.putheader(header, str(headers[header]))
             if start_position > 0:
                 debug("Requesting Range: %d .. end" % start_position)
@@ -1330,7 +1333,7 @@ class S3(object):
             response["status"] = http_response.status
             response["reason"] = http_response.reason
             response["headers"] = convertTupleListToDict(http_response.getheaders())
-            if response["headers"].has_key("x-amz-meta-s3cmd-attrs"):
+            if "x-amz-meta-s3cmd-attrs" in response["headers"]:
                 attrs = parse_attrs_header(response["headers"]["x-amz-meta-s3cmd-attrs"])
                 response["s3cmd-attrs"] = attrs
             debug("Response: %s" % response)
@@ -1379,7 +1382,7 @@ class S3(object):
             # Only compute MD5 on the fly if we're downloading from beginning
             # Otherwise we'd get a nonsense.
             md5_hash = md5()
-        size_left = long(response["headers"]["content-length"])
+        size_left = int(response["headers"]["content-length"])
         size_total = start_position + size_left
         current_position = start_position
 
@@ -1476,9 +1479,9 @@ class S3(object):
         response["elapsed"] = timestamp_end - timestamp_start
         response["size"] = current_position
         response["speed"] = response["elapsed"] and float(response["size"]) / response["elapsed"] or float(-1)
-        if response["size"] != start_position + long(response["headers"]["content-length"]):
+        if response["size"] != start_position + int(response["headers"]["content-length"]):
             warning("Reported size (%s) does not match received size (%s)" % (
-                start_position + long(response["headers"]["content-length"]), response["size"]))
+                start_position + int(response["headers"]["content-length"]), response["size"]))
         debug("ReceiveFile: Computed MD5 = %s" % response.get("md5"))
         # avoid ETags from multipart uploads that aren't the real md5
         if ('-' not in md5_from_s3 and not response["md5match"]) and (response["headers"].get("x-amz-server-side-encryption") != 'aws:kms'):

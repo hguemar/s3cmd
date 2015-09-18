@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -9,7 +10,7 @@
 import sys
 import datetime
 import time
-import Utils
+from . import Utils
 
 class Progress(object):
     _stdout = sys.stdout

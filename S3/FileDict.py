@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -7,9 +8,9 @@
 ## Copyright: TGRMN Software and contributors
 
 import logging
-from SortedDict import SortedDict
-import Utils
-import Config
+from .SortedDict import SortedDict
+from . import Utils
+from . import Config
 
 zero_length_md5 = "d41d8cd98f00b204e9800998ecf8427e"
 cfg = Config.Config()

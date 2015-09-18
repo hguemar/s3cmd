@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager - Exceptions library
@@ -6,9 +7,10 @@
 ## License: GPL Version 2
 ## Copyright: TGRMN Software and contributors
 
-from Utils import getTreeFromXml, unicodise, deunicodise
 from logging import debug, error
-import ExitCodes
+import six
+from . import Unicode
+from . import ExitCodes
 
 try:
     from xml.etree.ElementTree import ParseError as XmlParseError
@@ -18,12 +20,12 @@ except ImportError:
 
 class S3Exception(Exception):
     def __init__(self, message = ""):
-        self.message = unicodise(message)
+        self.message = Unicode.unicodise(message)
 
     def __str__(self):
         ## Call unicode(self) instead of self.message because
         ## __unicode__() method could be overridden in subclasses!
-        return deunicodise(unicode(self))
+        return Utils.deunicodise(six.text_type(self))
 
     def __unicode__(self):
         return self.message
@@ -46,12 +48,12 @@ class S3Error (S3Exception):
             "Resource" : ""
         }
         debug("S3Error: %s (%s)" % (self.status, self.reason))
-        if response.has_key("headers"):
+        if "headers" in response:
             for header in response["headers"]:
                 debug("HttpHeader: %s: %s" % (header, response["headers"][header]))
-        if response.has_key("data") and response["data"]:
+        if "data" in response and response["data"]:
             try:
-                tree = getTreeFromXml(response["data"])
+                tree = Utils.getTreeFromXml(response["data"])
             except XmlParseError:
                 debug("Not an XML response")
             else:
@@ -66,7 +68,7 @@ class S3Error (S3Exception):
 
     def __unicode__(self):
         retval = u"%d " % (self.status)
-        retval += (u"(%s)" % (self.info.has_key("Code") and self.info["Code"] or self.reason))
+        retval += (u"(%s)" % ("Code" in self.info and self.info["Code"] or self.reason))
         error_msg = self.info.get("Message")
         if error_msg:
             retval += (u": %s" % error_msg)

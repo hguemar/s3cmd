@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 Multipart upload support
@@ -8,7 +9,8 @@ import os
 import sys
 from stat import ST_SIZE
 from logging import debug, info, warning, error
-from Utils import getTextFromXml, getTreeFromXml, formatSize, unicodise, deunicodise, calculateChecksum, parseNodes, encode_to_s3
+from .Utils import getTextFromXml, getTreeFromXml, formatSize, calculateChecksum, parseNodes, encode_to_s3
+from .Unicode import unicodise, deunicodise
 
 class MultiPartUpload(object):
 
@@ -177,7 +179,7 @@ class MultiPartUpload(object):
 
         parts_xml = []
         part_xml = "<Part><PartNumber>%i</PartNumber><ETag>%s</ETag></Part>"
-        for seq, etag in self.parts.items():
+        for seq, etag in list(self.parts.items()):
             parts_xml.append(part_xml % (seq, etag))
         body = "<CompleteMultipartUpload>%s</CompleteMultipartUpload>" % ("".join(parts_xml))
 

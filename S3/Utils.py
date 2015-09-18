@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -15,7 +16,9 @@ import random
 import errno
 from calendar import timegm
 from logging import debug, warning, error
-from ExitCodes import EX_OSFILE
+from . import ExitCodes
+from . import Unicode
+import six
 try:
     import dateutil.parser
 except ImportError:
@@ -25,16 +28,16 @@ ImportError trying to import dateutil.parser.
 Please install the python dateutil module:
 $ sudo apt-get install python-dateutil
   or
-$ sudo yum install python-dateutil
+$ sudo yum install python3-dateutil
   or
 $ pip install python-dateutil
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """)
     sys.stderr.flush()
-    sys.exit(EX_OSFILE)
+    sys.exit(ExitCodes.EX_OSFILE)
 
-import Config
-import Exceptions
+from . import Config
+from . import Exceptions
 
 # hashlib backported to python 2.4 / 2.5 is not compatible with hmac!
 if sys.version_info[0] == 2 and sys.version_info[1] < 6:
@@ -109,7 +112,7 @@ def getDictFromTree(tree):
         else:
             content = decode_from_s3(child.text) if child.text is not None else None
         child_tag = decode_from_s3(child.tag)
-        if ret_dict.has_key(child_tag):
+        if child_tag in ret_dict:
             if not type(ret_dict[child_tag]) == list:
                 ret_dict[child_tag] = [ret_dict[child_tag]]
             ret_dict[child_tag].append(content or "")
@@ -205,7 +208,7 @@ def rndstr(len):
 __all__.append("rndstr")
 
 def mktmpsomething(prefix, randchars, createfunc):
-    old_umask = os.umask(0077)
+    old_umask = os.umask(0o077)
     tries = 5
     while tries > 0:
         dirname = prefix + rndstr(randchars)
@@ -227,13 +230,13 @@ def mktmpdir(prefix = os.getenv('TMP','/tmp') + "/tmpdir-", randchars = 10):
 __all__.append("mktmpdir")
 
 def mktmpfile(prefix = os.getenv('TMP','/tmp') + "/tmpfile-", randchars = 20):
-    createfunc = lambda filename : os.close(os.open(deunicodise(filename), os.O_CREAT | os.O_EXCL))
+    createfunc = lambda filename : os.close(os.open(Unicode.deunicodise(filename), os.O_CREAT | os.O_EXCL))
     return mktmpsomething(prefix, randchars, createfunc)
 __all__.append("mktmpfile")
 
 def hash_file_md5(filename):
     h = md5()
-    f = open(deunicodise(filename), "rb")
+    f = open(Unicode.deunicodise(filename), "rb")
     while True:
         # Hash 32kB chunks
         data = f.read(32*1024)
@@ -254,14 +257,14 @@ def mkdir_with_parents(dir_name):
     """
     pathmembers = dir_name.split(os.sep)
     tmp_stack = []
-    while pathmembers and not os.path.isdir(deunicodise(os.sep.join(pathmembers))):
+    while pathmembers and not os.path.isdir(Unicode.deunicodise(os.sep.join(pathmembers))):
         tmp_stack.append(pathmembers.pop())
     while tmp_stack:
         pathmembers.append(tmp_stack.pop())
         cur_dir = os.sep.join(pathmembers)
         try:
             debug("mkdir(%s)" % cur_dir)
-            os.mkdir(deunicodise(cur_dir))
+            os.mkdir(Unicode.deunicodise(cur_dir))
         except (OSError, IOError) as e:
             debug("Can not make directory '%s' (Reason: %s)" % (cur_dir, e.strerror))
             return False
@@ -271,60 +274,16 @@ def mkdir_with_parents(dir_name):
     return True
 __all__.append("mkdir_with_parents")
 
-def unicodise(string, encoding = None, errors = "replace"):
-    """
-    Convert 'string' to Unicode or raise an exception.
-    """
-
-    if not encoding:
-        encoding = Config.Config().encoding
-
-    if type(string) == unicode:
-        return string
-    debug("Unicodising %r using %s" % (string, encoding))
-    try:
-        return unicode(string, encoding, errors)
-    except UnicodeDecodeError:
-        raise UnicodeDecodeError("Conversion to unicode failed: %r" % string)
-__all__.append("unicodise")
-
-def deunicodise(string, encoding = None, errors = "replace"):
-    """
-    Convert unicode 'string' to <type str>, by default replacing
-    all invalid characters with '?' or raise an exception.
-    """
-
-    if not encoding:
-        encoding = Config.Config().encoding
-
-    if type(string) != unicode:
-        return str(string)
-    debug("DeUnicodising %r using %s" % (string, encoding))
-    try:
-        return string.encode(encoding, errors)
-    except UnicodeEncodeError:
-        raise UnicodeEncodeError("Conversion from unicode failed: %r" % string)
-__all__.append("deunicodise")
-
-def unicodise_safe(string, encoding = None):
-    """
-    Convert 'string' to Unicode according to current encoding
-    and replace all invalid characters with '?'
-    """
-
-    return unicodise(deunicodise(string, encoding), encoding).replace(u'\ufffd', '?')
-__all__.append("unicodise_safe")
-
 def decode_from_s3(string, errors = "replace"):
     """
     Convert S3 UTF-8 'string' to Unicode or raise an exception.
     """
-    if type(string) == unicode:
+    if type(string) == six.text_type:
         return string
     # Be quiet by default
     #debug("Decoding string from S3: %r" % string)
     try:
-        return unicode(string, "UTF-8", errors)
+        return six.text_type(string, "UTF-8", errors)
     except UnicodeDecodeError:
         raise UnicodeDecodeError("Conversion to unicode failed: %r" % string)
 __all__.append("decode_from_s3")
@@ -334,7 +293,7 @@ def encode_to_s3(string, errors = "replace"):
     Convert Unicode to S3 UTF-8 'string', by default replacing
     all invalid characters with '?' or raise an exception.
     """
-    if type(string) != unicode:
+    if type(string) != six.text_type:
         return str(string)
     # Be quiet by default
     #debug("Encoding string to S3: %r" % string)
@@ -384,7 +343,7 @@ def time_to_epoch(t):
     elif hasattr(t, 'strftime'):
         # Looks like the object supports standard srftime()
         return int(t.strftime('%s'))
-    elif isinstance(t, str) or isinstance(t, unicode):
+    elif isinstance(t, str) or isinstance(t, six.text_type):
         # See if it's a string representation of an epoch
         try:
             # Support relative times (eg. "+60")

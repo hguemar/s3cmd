@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 #!/usr/bin/env python2
 # -*- coding=utf-8 -*-
 
@@ -17,6 +19,7 @@ import getpass
 import S3.Exceptions
 import S3.Config
 from S3.ExitCodes import *
+from six.moves import range
 
 count_pass = 0
 count_fail = 0
@@ -62,16 +65,16 @@ elif os.name == "nt" and os.getenv("USERPROFILE"):
 if not os.path.isdir('testsuite') and os.path.isfile('testsuite.tar.gz'):
     os.system("tar -xz -f testsuite.tar.gz")
 if not os.path.isdir('testsuite'):
-    print "Something went wrong while unpacking testsuite.tar.gz"
+    print("Something went wrong while unpacking testsuite.tar.gz")
     sys.exit(1)
 
 os.system("tar -xf testsuite/checksum.tar -C testsuite")
 if not os.path.isfile('testsuite/checksum/cksum33.txt'):
-    print "Something went wrong while unpacking testsuite/checkum.tar"
+    print("Something went wrong while unpacking testsuite/checkum.tar")
     sys.exit(1)
 
 ## Fix up permissions for permission-denied tests
-os.chmod("testsuite/permission-tests/permission-denied-dir", 0444)
+os.chmod("testsuite/permission-tests/permission-denied-dir", 0o444)
 os.chmod("testsuite/permission-tests/permission-denied.txt", 0000)
 
 ## Patterns for Unicode tests
@@ -81,10 +84,10 @@ patterns['GBK'] = u"12月31日/1-特色條目"
 
 encoding = locale.getpreferredencoding()
 if not encoding:
-    print "Guessing current system encoding failed. Consider setting $LANG variable."
+    print("Guessing current system encoding failed. Consider setting $LANG variable.")
     sys.exit(1)
 else:
-    print "System encoding: " + encoding
+    print("System encoding: " + encoding)
 
 have_encoding = os.path.isdir('testsuite/encodings/' + encoding)
 if not have_encoding and os.path.isfile('testsuite/encodings/%s.tar.gz' % encoding):
@@ -95,7 +98,7 @@ if have_encoding:
     #enc_base_remote = "%s/xyz/%s/" % (pbucket(1), encoding)
     enc_pattern = patterns[encoding]
 else:
-    print encoding + " specific files not found."
+    print(encoding + " specific files not found.")
 
 if not os.path.isdir('testsuite/crappy-file-name'):
     os.system("tar xvz -C testsuite -f testsuite/crappy-file-name.tar.gz")
@@ -104,17 +107,17 @@ if not os.path.isdir('testsuite/crappy-file-name'):
 
 def test(label, cmd_args = [], retcode = 0, must_find = [], must_not_find = [], must_find_re = [], must_not_find_re = [], stdin = None):
     def command_output():
-        print "----"
-        print " ".join([" " in arg and "'%s'" % arg or arg for arg in cmd_args])
-        print "----"
-        print stdout
-        print "----"
+        print("----")
+        print(" ".join([" " in arg and "'%s'" % arg or arg for arg in cmd_args]))
+        print("----")
+        print(stdout)
+        print("----")
 
     def failure(message = ""):
         global count_fail
         if message:
             message = u"  (%r)" % message
-        print u"\x1b[31;1mFAIL%s\x1b[0m" % (message)
+        print(u"\x1b[31;1mFAIL%s\x1b[0m" % (message))
         count_fail += 1
         command_output()
         #return 1
@@ -123,7 +126,7 @@ def test(label, cmd_args = [], retcode = 0, must_find = [], must_not_find = [], 
         global count_pass
         if message:
             message = "  (%r)" % message
-        print "\x1b[32;1mOK\x1b[0m%s" % (message)
+        print("\x1b[32;1mOK\x1b[0m%s" % (message))
         count_pass += 1
         if verbose:
             command_output()
@@ -132,7 +135,7 @@ def test(label, cmd_args = [], retcode = 0, must_find = [], must_not_find = [], 
         global count_skip
         if message:
             message = "  (%r)" % message
-        print "\x1b[33;1mSKIP\x1b[0m%s" % (message)
+        print("\x1b[33;1mSKIP\x1b[0m%s" % (message))
         count_skip += 1
         return 0
     def compile_list(_list, regexps = False):
@@ -143,7 +146,7 @@ def test(label, cmd_args = [], retcode = 0, must_find = [], must_not_find = [], 
 
     global test_counter
     test_counter += 1
-    print ("%3d  %s " % (test_counter, label)).ljust(30, "."),
+    print(("%3d  %s " % (test_counter, label)).ljust(30, "."), end=' ')
     sys.stdout.flush()
 
     if run_tests.count(test_counter) == 0 or exclude_tests.count(test_counter) > 0:
@@ -202,7 +205,7 @@ def test_mkdir(label, dir_name):
     if os.name in ("posix", "nt"):
         cmd = ['mkdir', '-p']
     else:
-        print "Unknown platform: %s" % os.name
+        print("Unknown platform: %s" % os.name)
         sys.exit(1)
     cmd.append(dir_name)
     return test(label, cmd)
@@ -214,7 +217,7 @@ def test_rmdir(label, dir_name):
         elif os.name == "nt":
             cmd = ['rmdir', '/s/q']
         else:
-            print "Unknown platform: %s" % os.name
+            print("Unknown platform: %s" % os.name)
             sys.exit(1)
         cmd.append(dir_name)
         return test(label, cmd)
@@ -231,7 +234,7 @@ def test_copy(label, src_file, dst_file):
     elif os.name == "nt":
         cmd = ['copy']
     else:
-        print "Unknown platform: %s" % os.name
+        print("Unknown platform: %s" % os.name)
         sys.exit(1)
     cmd.append(src_file)
     cmd.append(dst_file)
@@ -243,24 +246,24 @@ def test_curl_HEAD(label, src_file, **kwargs):
     return test(label, cmd, **kwargs)
 
 bucket_prefix = u"%s-" % getpass.getuser()
-print "Using bucket prefix: '%s'" % bucket_prefix
+print("Using bucket prefix: '%s'" % bucket_prefix)
 
 argv = sys.argv[1:]
 while argv:
     arg = argv.pop(0)
     if arg.startswith('--bucket-prefix='):
-        print "Usage: '--bucket-prefix PREFIX', not '--bucket-prefix=PREFIX'"
+        print("Usage: '--bucket-prefix PREFIX', not '--bucket-prefix=PREFIX'")
         sys.exit(0)
     if arg in ("-h", "--help"):
-        print "%s A B K..O -N" % sys.argv[0]
-        print "Run tests number A, B and K through to O, except for N"
+        print("%s A B K..O -N" % sys.argv[0])
+        print("Run tests number A, B and K through to O, except for N")
         sys.exit(0)
 
     if arg in ("-c", "--config"):
         config_file = argv.pop(0)
         continue
     if arg in ("-l", "--list"):
-        exclude_tests = range(0, 999)
+        exclude_tests = list(range(0, 999))
         break
     if arg in ("-v", "--verbose"):
         verbose = True
@@ -269,14 +272,14 @@ while argv:
         try:
             bucket_prefix = argv.pop(0)
         except IndexError:
-            print "Bucket prefix option must explicitly supply a bucket name prefix"
+            print("Bucket prefix option must explicitly supply a bucket name prefix")
             sys.exit(0)
         continue
     if ".." in arg:
         range_idx = arg.find("..")
         range_start = arg[:range_idx] or 0
         range_end = arg[range_idx+2:] or 999
-        run_tests.extend(range(int(range_start), int(range_end) + 1))
+        run_tests.extend(list(range(int(range_start), int(range_end) + 1)))
     elif arg.startswith("-"):
         exclude_tests.append(int(arg[1:]))
     else:
@@ -285,7 +288,7 @@ while argv:
 cfg = S3.Config.Config(config_file)
 
 if not run_tests:
-    run_tests = range(0, 999)
+    run_tests = list(range(0, 999))
 
 # helper functions for generating bucket names
 def bucket(tail):

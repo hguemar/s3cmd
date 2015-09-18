@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -11,9 +12,8 @@ from logging import debug, warning, error
 import re
 import os
 import sys
-import Progress
-from SortedDict import SortedDict
-import httplib
+from .SortedDict import SortedDict
+import six.moves.http_client
 import locale
 try:
     import json
@@ -34,7 +34,6 @@ class Config(object):
     cloudfront_host = "cloudfront.amazonaws.com"
     verbosity = logging.WARNING
     progress_meter = sys.stdout.isatty()
-    progress_class = Progress.ProgressCR
     send_chunk = 64 * 1024
     recv_chunk = 64 * 1024
     list_md5 = False
@@ -171,7 +170,7 @@ class Config(object):
             error("IAM authentication not available -- missing module json")
             raise
         try:
-            conn = httplib.HTTPConnection(host='169.254.169.254', timeout = 2)
+            conn = six.moves.http_client.HTTPConnection(host='169.254.169.254', timeout = 2)
             conn.request('GET', "/latest/meta-data/iam/security-credentials/")
             resp = conn.getresponse()
             files = resp.read()
@@ -360,7 +359,7 @@ class ConfigParser(object):
         self.cfg[name] = value
 
     def get(self, name, default = None):
-        if self.cfg.has_key(name):
+        if name in self.cfg:
             return self.cfg[name]
         return default
 

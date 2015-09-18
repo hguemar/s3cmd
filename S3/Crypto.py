@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Amazon S3 manager
@@ -10,9 +11,10 @@ import sys
 import hmac
 import base64
 
-import Config
+from . import Config
 from logging import debug
-from Utils import encode_to_s3, time_to_epoch, deunicodise
+from .Utils import encode_to_s3, time_to_epoch
+from .Unicode import deunicodise
 
 import datetime
 import urllib
@@ -20,7 +22,7 @@ import urllib
 # hashlib backported to python 2.4 / 2.5 is not compatible with hmac!
 if sys.version_info[0] == 2 and sys.version_info[1] < 6:
     import sha as sha1
-    from Crypto.Hash import SHA256 as sha256
+    from .Crypto.Hash import SHA256 as sha256
 else:
     from hashlib import sha1, sha256
 
@@ -118,7 +120,7 @@ def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='
                          }
     signed_headers = 'host;x-amz-content-sha256;x-amz-date'
 
-    for header in cur_headers.keys():
+    for header in list(cur_headers.keys()):
         # avoid duplicate headers and previous Authorization
         if header == 'Authorization' or header in signed_headers.split(';'):
             continue
@@ -143,7 +145,7 @@ def sign_string_v4(method='GET', host='', canonical_uri='/', params={}, region='
     signing_key = getSignatureKey(secret_key, datestamp, region, service)
     signature = hmac.new(signing_key, encode_to_s3(string_to_sign), sha256).hexdigest()
     authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ',' +  'SignedHeaders=' + signed_headers + ',' + 'Signature=' + signature
-    headers = dict(cur_headers.items() + {'x-amz-date':amzdate, 'Authorization':authorization_header, 'x-amz-content-sha256': payload_hash}.items())
+    headers = dict(list(cur_headers.items()) + list({'x-amz-date':amzdate, 'Authorization':authorization_header, 'x-amz-content-sha256': payload_hash}.items()))
     debug("signature-v4 headers: %s" % headers)
     return headers
 

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # -*- coding: utf-8 -*-
 
 ## Create and compare lists of files/objects
@@ -6,13 +7,13 @@
 ## License: GPL Version 2
 ## Copyright: TGRMN Software and contributors
 
-from S3 import S3
-from Config import Config
-from S3Uri import S3Uri
-from FileDict import FileDict
-from Utils import *
-from Exceptions import ParameterError
-from HashCache import HashCache
+from .S3 import S3
+from .Config import Config
+from .S3Uri import S3Uri
+from .FileDict import FileDict
+from .Utils import *
+from .Exceptions import ParameterError
+from .HashCache import HashCache
 
 from logging import debug, info, warning
 
@@ -121,7 +122,7 @@ def filter_exclude_include(src_list):
     debug(u"Applying --exclude/--include")
     cfg = Config()
     exclude_list = FileDict(ignore_case = False)
-    for file in src_list.keys():
+    for file in list(src_list.keys()):
         debug(u"CHECK: %s" % file)
         excluded = False
         for r in cfg.exclude:
@@ -176,7 +177,7 @@ def _get_filelist_from_file(cfg, local_path):
 
     # reformat to match os.walk()
     result = []
-    keys = filelist.keys()
+    keys = list(filelist.keys())
     keys.sort()
     for key in keys:
         values = filelist[key]
@@ -294,7 +295,7 @@ def fetch_local_list(args, is_src = False, recursive = None):
         # not.  Leave it to a non-files_from run to purge.
         if cfg.cache_file and len(cfg.files_from) == 0:
             cache.mark_all_for_purge()
-            for i in local_list.keys():
+            for i in list(local_list.keys()):
                 cache.unmark_for_purge(local_list[i]['dev'], local_list[i]['inode'], local_list[i]['mtime'], local_list[i]['size'])
             cache.purge()
             cache.save(cfg.cache_file)
@@ -490,8 +491,8 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote):
     def _compare(src_list, dst_lst, src_remote, dst_remote, file):
         """Return True if src_list[file] matches dst_list[file], else False"""
         attribs_match = True
-        if not (src_list.has_key(file) and dst_list.has_key(file)):
-            info(u"%s: does not exist in one side or the other: src_list=%s, dst_list=%s" % (file, src_list.has_key(file), dst_list.has_key(file)))
+        if not (file in src_list and file in dst_list):
+            info(u"%s: does not exist in one side or the other: src_list=%s, dst_list=%s" % (file, file in src_list, file in dst_list))
             return False
 
         ## check size first
@@ -539,10 +540,10 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote):
 
     debug("Comparing filelists (direction: %s -> %s)" % (__direction_str(src_remote), __direction_str(dst_remote)))
 
-    for relative_file in src_list.keys():
+    for relative_file in list(src_list.keys()):
         debug(u"CHECK: %s" % (relative_file))
 
-        if dst_list.has_key(relative_file):
+        if relative_file in dst_list:
             ## Was --skip-existing requested?
             if cfg.skip_existing:
                 debug(u"IGNR: %s (used --skip-existing)" % (relative_file))
@@ -570,7 +571,7 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote):
                     md5 = src_list.get_md5(relative_file)
                 except IOError:
                     md5 = None
-                if md5 is not None and dst_list.by_md5.has_key(md5):
+                if md5 is not None and md5 in dst_list.by_md5:
                     # Found one, we want to copy
                     dst1 = list(dst_list.by_md5[md5])[0]
                     debug(u"DST COPY src: %s -> %s" % (dst1, relative_file))
@@ -604,8 +605,8 @@ def compare_filelists(src_list, dst_list, src_remote, dst_remote):
                 # we can copy from _this_ copy (e.g. we only upload it once, and copy thereafter).
                 dst_list.record_md5(relative_file, md5)
 
-    for f in dst_list.keys():
-        if src_list.has_key(f) or update_list.has_key(f):
+    for f in list(dst_list.keys()):
+        if f in src_list or f in update_list:
             # leave only those not on src_list + update_list
             del dst_list[f]
 
